@@ -1,0 +1,15 @@
+Aula sobre shared memory -> 05/10
+
+    - Nunca fazer malloc na área de memória compartilhada!
+    - "Criação de Memória Compartilhada.png"
+    - "Obtenção de Memória Compartilhada.png"
+    - "Attach de Memória Compartilhada.png"
+    - "Detach de Memória Compartilhada.png"
+    - "Remoção de Memória Compartilhada.png"
+    - 
+
+Links úteis:
+
+    Lib sys/ipc.h <https://pubs.opengroup.org/onlinepubs/7908799/xsh/sysipc.h.html>
+
+    Lib sys/shm.h <https://pubs.opengroup.org/onlinepubs/007908799/xsh/sysshm.h.html>
