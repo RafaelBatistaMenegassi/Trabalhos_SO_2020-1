@@ -19,8 +19,7 @@ Execução:
 
 */
 
-#define KEY 0x9355 // key <- quatro ultimos numeros da matricula do Rafael
-#define MAX_INTERACAO 5 // Interacoes desejadas de escrita e leitura de shm
+#define MAX_INTERACAO 20 // Interacoes desejadas de escrita e leitura de shm
 
 #include<unistd.h>
 #include<errno.h>
@@ -34,7 +33,6 @@ Execução:
 #include<stdlib.h>
 
 /* implementacao de semaforos de maneira invertida (P incrementa e V decrementa, justamente pelo valor do semaforo iniciar em 0) */
-/* uma maneira alternativa e fazer um "semctl(SET_VAL)" e implementar tal qual o Djikstra */
 
 struct sembuf operacao[2];
 int id_sem_read, id_sem_write;
@@ -44,10 +42,11 @@ void p_sem(int sem_id)
   operacao[0].sem_num = 0;
   operacao[0].sem_op = 0;
   operacao[0].sem_flg = 0;
-  operacao[1].sem_num = 0;
 
+  operacao[1].sem_num = 0;
   operacao[1].sem_op = 1;
   operacao[1].sem_flg = 0;
+
   if (semop(sem_id, operacao, 2) < 0)
     printf("erro no p=%d\n", errno);
 }
@@ -57,11 +56,10 @@ void v_sem(int id_sem)
   operacao[0].sem_num = 0;
   operacao[0].sem_op = -1;
   operacao[0].sem_flg = 0;
+
   if (semop(id_sem, operacao, 1) < 0)
     printf("erro no p=%d\n", errno);
 }
-
-/* rotina principal */
 
 int main()
 {
@@ -70,7 +68,7 @@ int main()
   int *pshm;
 
   /* criacao de semaforo de escrita*/
-  if ((id_sem_write = semget(KEY, 1, IPC_CREAT|0x1ff)) < 0)
+  if ((id_sem_write = semget(0x9355, 1, IPC_CREAT|0x1ff)) < 0)
   {
     perror("Erro ao tentar criar semaforo de escrita\n");
     printf("Erro #%d\n", errno);
@@ -78,7 +76,7 @@ int main()
   }
 
   /* criacao de semaforo de leitura*/
-  if ((id_sem_read = semget(KEY+1, 1, IPC_CREAT|0x1ff)) < 0)
+  if ((id_sem_read = semget(0x8983, 1, IPC_CREAT|0x1ff)) < 0)
   {
     perror("Erro ao tentar criar semaforo de escrita\n");
     printf("Erro #%d\n", errno);
@@ -88,7 +86,7 @@ int main()
   p_sem(id_sem_read);
 
   /* criacao de area de memoria compartilhada */
-  if ((idshm = shmget(KEY, sizeof(int), IPC_CREAT|0x1ff)) < 0) 
+  if ((idshm = shmget(0x9355, sizeof(int), IPC_CREAT|0x1ff)) < 0) 
   {
     perror("Erro ao tentar criar area de memoria compartilhada\n");
     printf("Erro #%d\n", errno);
@@ -96,17 +94,23 @@ int main()
   }
 
   /* criacao de processo filho */
-  pid = fork();
-
-  for (int i = 1; i < MAX_INTERACAO + 1; i++) // Testar inicialmente com 3 e depois mudar para vinte
+  if ((pid = fork()) == -1)
   {
+    printf("Erro na criação do processo filho.\n");
+    printf("Erro #%d\n", errno);
+    exit(1);
+  }
+
+
+  for (int i = 1; i < MAX_INTERACAO + 1; i++)
+  {
+    /* Processo filho */
     if (pid == 0)
     {
-      /* filho */
       int* shmaddr_filho;
 
       /* attach do filho em area compartilhada */
-      pshm = (int *) shmat(idshm, shmaddr_filho, 0); // Ultimo argumento equivale a "O_RDWR"
+      pshm = (int *) shmat(idshm, shmaddr_filho, 0);
       if (pshm == (int *)-1) 
       {
         printf("\nErro #%d\t", errno);
@@ -116,7 +120,7 @@ int main()
 
       p_sem(id_sem_write);
       *pshm = i;
-      printf("Processo <%d> escreveu %d.\n", (int) getpid(), *pshm);
+      printf("Processo <%d> escreveu %d\n", (int) getpid(), *pshm);
       v_sem(id_sem_read);
 
       if(i == MAX_INTERACAO)
@@ -126,7 +130,8 @@ int main()
     }
     else
     {
-      /* pai */
+      /* Processo pai */
+
       int* shmaddr_pai;
 
       /* attach do pai em area compartilhada */
@@ -139,56 +144,12 @@ int main()
       }
 
       p_sem(id_sem_read);
-      printf("Processo <%d> leu %d.\n", (int) getpid(), *pshm);
+      printf("Processo <%d> leu %d\n", (int) getpid(), *pshm);
       v_sem(id_sem_write);    
     }
   }
 
-  // if (pid == 0)
-  // {
-  //   /* filho */
-  //   int* shmaddr_filho;
-
-  //   /* attach do filho em area compartilhada */
-  //   pshm = (int *) shmat(idshm, shmaddr_filho, 0); // Ultimo argumento equivale a "O_RDWR"
-  //   if (pshm == (int *)-1) 
-  //   {
-  //     printf("\nErro #%d\t", errno);
-  //     perror("\nErro ao tentar attach ");
-  //     exit(1);
-  //   }
-
-  //   for (int i = 1; i < MAX_INTERACAO + 1; i++)
-  //   {
-  //     p_sem(id_sem_write);
-  //     *pshm = i;
-  //     printf("Processo <%d> escreveu %d.\n", (int) getpid(), *pshm);
-  //     v_sem(id_sem_read);
-  //   }
-
-  //   exit(0);
-  // }
-
-  // /* pai */
-      
-  // int* shmaddr_pai;
-
-  // /* attach do pai em area compartilhada */
-  // pshm = (int *) shmat(idshm, shmaddr_pai, 0); // Ultimo argumento equivale a "O_RDWR"
-  // if (*pshm == -1) 
-  // {
-  //   printf("\nErro #%d\t", errno);
-  //   perror("\nErro ao tentar attach - ");
-  //   exit(1);
-  // }
-
-  // for (int i = 1; i < MAX_INTERACAO + 1; i++)
-  // {
-  //   p_sem(id_sem_read);
-  //   printf("Processo <%d> leu %d.\n", (int) getpid(), *pshm);
-  //   v_sem(id_sem_write);
-  // }
-
+  printf("----------------------\n");
   /* Remove memoria compartilhada */
   if (shmctl(idshm, IPC_RMID, 0) < 0)
   {
@@ -198,7 +159,7 @@ int main()
   }
   else 
   {
-    printf("Removed memoria compartilhada\n");
+    printf("Memoria compartilhada removida.\n");
   }
 
   /* Remove semaforos */
@@ -209,7 +170,7 @@ int main()
   } 
   else 
   {
-    printf("Removed semaphore de leitura\n");
+    printf("Semaforo de leitura removido\n");
   }
 
   if(semctl(id_sem_write, 0, IPC_RMID, NULL) < 0) {
@@ -219,7 +180,7 @@ int main()
   } 
   else 
   {
-    printf("Removed semaphore de escrita\n");
+    printf("Semaforo de escrita removido\n");
   }
 
   return 0; 
