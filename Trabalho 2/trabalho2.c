@@ -64,7 +64,6 @@ void v_sem(int id_sem)
 int main()
 {
   int pid, idshm;
-  struct shmid_ds buf;
   int *pshm;
 
   /* criacao de semaforo de escrita*/
@@ -83,8 +82,6 @@ int main()
     exit(1);
   }
 
-  p_sem(id_sem_read);
-
   /* criacao de area de memoria compartilhada */
   if ((idshm = shmget(0x9355, sizeof(int), IPC_CREAT|0x1ff)) < 0) 
   {
@@ -92,6 +89,8 @@ int main()
     printf("Erro #%d\n", errno);
     exit(1);
   }
+
+  p_sem(id_sem_read);
 
   /* criacao de processo filho */
   if ((pid = fork()) == -1)
@@ -107,10 +106,8 @@ int main()
     /* Processo filho */
     if (pid == 0)
     {
-      int* shmaddr_filho;
-
       /* attach do filho em area compartilhada */
-      pshm = (int *) shmat(idshm, shmaddr_filho, 0);
+      pshm = (int *) shmat(idshm, (char *) 0, 0);
       if (pshm == (int *)-1) 
       {
         printf("\nErro #%d\t", errno);
@@ -132,10 +129,8 @@ int main()
     {
       /* Processo pai */
 
-      int* shmaddr_pai;
-
       /* attach do pai em area compartilhada */
-      pshm = (int *) shmat(idshm, shmaddr_pai, 0); // Ultimo argumento equivale a "O_RDWR"
+      pshm = (int *) shmat(idshm, (char *) 0, 0); // Ultimo argumento equivale a "O_RDWR"
       if (*pshm == -1) 
       {
         printf("\nErro #%d\t", errno);
