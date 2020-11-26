@@ -33,14 +33,9 @@ Execução:
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
-#include <stdbool.h>
-
-volatile sig_atomic_t print_flag = false;
 
 void sig_handler(int signum){
-	print_flag = true;
 	printf("[ALARM] Timeout!\n");
-
 }
 
 int main()
@@ -86,12 +81,12 @@ int main()
 
 			msgsnd(idfila, &mensagem_env, sizeof(mensagem_env)-sizeof(long), 0);
 
-			// if (i == (MAX_MSGS - 1))
-			// {
-			// 	/* fim do filho */ 
-			// 	printf("----- [FILHO] FINALIZACAO!\n"); 
-			// 	exit (0);	       
-			// }
+			if (i == (MAX_MSGS - 1))
+			{
+				/* fim do filho */ 
+				printf("----- [FILHO] FINALIZACAO!\n"); 
+				exit (0);	       
+			}
 		}
 		else
 		{
@@ -119,31 +114,22 @@ int main()
 			}
 			else
 			{
-				if(print_flag) {
-					// printf("OI\n");
-					print_flag = false;
-					alarm(2); //reschedule
-				}
-				else
-				{
-					printf("[PAI - RODADA %d] Mensagem <pid: %li, msg: %d> recebida!\n", i+1, mensagem_rec.pid, mensagem_rec.msg);
-					msgs_recebidas[i] = mensagem_rec.msg;
-				}
-				
-				// alarm(0);
+				alarm(0);
+				printf("[PAI - RODADA %d] Mensagem <pid: %li, msg: %d> recebida!\n", i+1, mensagem_rec.pid, mensagem_rec.msg);
+				msgs_recebidas[i] = mensagem_rec.msg;
 			}
 
-			// if (i == (MAX_MSGS - 1))
-			// {
-			// 	/* fim do pai */   
-			// 	printf("----- [PAI] FINALIZACAO!\n");
-			// 	// printf("----- [PAI] Mensagens recebidas:\n");     
-			// 	// for (int j = 0; j < MAX_MSGS; j++)
-			// 	// {
-			// 	// 	printf("----- [PAI] Posicao {%d} -> Conteudo %d\n", j, msgs_recebidas[j]);
-			// 	// }
+			if (i == (MAX_MSGS - 1))
+			{
+				/* fim do pai */   
+				printf("----- [PAI] FINALIZACAO!\n");
+				printf("----- [PAI] Mensagens recebidas:\n");     
+				for (int j = 0; j < MAX_MSGS; j++)
+				{
+					printf("----- [PAI] Posicao {%d} -> Conteudo %d\n", j, msgs_recebidas[j]);
+				}
 				
-			// }
+			}
 		}
 	}
 
