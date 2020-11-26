@@ -61,6 +61,11 @@ int main()
 	printf("\n!!! INICIO DA TROCA DE MENSAGENS:\n");
 
 	pid = fork();
+	if(pid < 0)
+	{
+		printf("erro na criacao do processo\n");
+		exit(1);
+	}
 
 	srand((unsigned)time(NULL));
 
@@ -77,10 +82,9 @@ int main()
 			mensagem_env.pid = getpid();
 			mensagem_env.msg = i + 1;
 
-			printf("[FILHO - RODADA %d] Mensagem <pid: %li, msg: %d> enviada!\n", i+1, mensagem_env.pid, mensagem_env.msg);
-
 			msgsnd(idfila, &mensagem_env, sizeof(mensagem_env)-sizeof(long), 0);
-
+			printf("[FILHO - RODADA %d] Mensagem <pid: %li, msg: %d> enviada!\n", i+1, mensagem_env.pid, mensagem_env.msg);
+			
 			if (i == (MAX_MSGS - 1))
 			{
 				/* fim do filho */ 
@@ -100,7 +104,12 @@ int main()
 
 			alarm(2);
 
-			if (msgrcv(idfila, &mensagem_rec, sizeof(mensagem_rec)-sizeof(long), 0, 0) < 0)
+			if (msgrcv(idfila, &mensagem_rec, sizeof(mensagem_rec)-sizeof(long), 0, 0))
+			{
+				printf("[PAI - RODADA %d] Mensagem <pid: %li, msg: %d> recebida!\n", i+1, mensagem_rec.pid, mensagem_rec.msg);
+				msgs_recebidas[i] = mensagem_rec.msg;
+			}
+			else
 			{
 				if(errno == EINTR){
         			printf("[PAI - RODADA %d] Mensagem não foi recebida em 2 segs.\n", i+1);
@@ -111,12 +120,6 @@ int main()
 					printf("[PAI - RODADA %d] Erro ao receber mensagem! Erro: %d", i+1, errno);
 					msgs_recebidas[i] = -1;
 				}
-			}
-			else
-			{
-				alarm(0);
-				printf("[PAI - RODADA %d] Mensagem <pid: %li, msg: %d> recebida!\n", i+1, mensagem_rec.pid, mensagem_rec.msg);
-				msgs_recebidas[i] = mensagem_rec.msg;
 			}
 
 			if (i == (MAX_MSGS - 1))
@@ -132,6 +135,24 @@ int main()
 			}
 		}
 	}
+
+	sleep(30);
+	if (pid != 0) {
+		if (msgctl(idfila, IPC_RMID, &buf) < 0)
+		{
+			printf("[FIM] Erro #%d\t", errno);
+			perror("Erro ao tentar remover fila\n");
+			exit(1);
+		} 
+		else 
+		{
+			printf("[FIM] Fila removida\n");
+		}
+	}
+	
+
+	return 0;
+}
 
 
 	// RODADA 1
@@ -171,22 +192,3 @@ int main()
 	//		filho - enviei msg4
 	//		
 	//		queue - 3 4
-
-	sleep(30);
-	if (pid != 0) {
-		if (msgctl(idfila, IPC_RMID, &buf) < 0)
-		{
-			printf("[FIM] Erro #%d\t", errno);
-			perror("Erro ao tentar remover fila\n");
-			exit(1);
-		} 
-		else 
-		{
-			printf("[FIM] Fila removida\n");
-		}
-	}
-	
-
-	return 0;
-}
-	
