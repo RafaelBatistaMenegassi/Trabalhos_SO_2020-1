@@ -33,9 +33,14 @@ Execução:
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
+#include <stdbool.h>
+
+volatile sig_atomic_t print_flag = false;
 
 void sig_handler(int signum){
+	print_flag = true;
 	printf("[ALARM] Timeout!\n");
+
 }
 
 int main()
@@ -71,22 +76,22 @@ int main()
 		if (pid == 0)
 		{
 			segundos = 1 + (rand() % 4);
-			printf("[FILHO] Demorarei %d segs. para enviar\n", segundos);
+			printf("[FILHO - RODADA %d] Demorarei %d segs. para enviar\n", i+1, segundos);
 			sleep(segundos);
 
 			mensagem_env.pid = getpid();
 			mensagem_env.msg = i + 1;
 
+			printf("[FILHO - RODADA %d] Mensagem <pid: %li, msg: %d> enviada!\n", i+1, mensagem_env.pid, mensagem_env.msg);
+
 			msgsnd(idfila, &mensagem_env, sizeof(mensagem_env)-sizeof(long), 0);
 
-			printf("[FILHO] Mensagem <pid: %li, msg: %d> enviada!\n", mensagem_env.pid, mensagem_env.msg);
-
-			if (i == (MAX_MSGS - 1))
-			{
-				/* fim do filho */ 
-				printf("----- [FILHO] FINALIZACAO!\n"); 
-				exit (0);	       
-			}
+			// if (i == (MAX_MSGS - 1))
+			// {
+			// 	/* fim do filho */ 
+			// 	printf("----- [FILHO] FINALIZACAO!\n"); 
+			// 	exit (0);	       
+			// }
 		}
 		else
 		{
@@ -103,48 +108,98 @@ int main()
 			if (msgrcv(idfila, &mensagem_rec, sizeof(mensagem_rec)-sizeof(long), 0, 0) < 0)
 			{
 				if(errno == EINTR){
-        			printf("[PAI] Mensagem não foi recebida em 2 segs.\n");
+        			printf("[PAI - RODADA %d] Mensagem não foi recebida em 2 segs.\n", i+1);
 					msgs_recebidas[i] = -1;
 				}
 				else
 				{
-					printf("[PAI] Erro ao receber mensagem! Erro: %d", errno);
+					printf("[PAI - RODADA %d] Erro ao receber mensagem! Erro: %d", i+1, errno);
 					msgs_recebidas[i] = -1;
 				}
 			}
 			else
 			{
-				alarm(0);
-				printf("[PAI] Mensagem <pid: %li, msg: %d> recebida!\n", mensagem_rec.pid, mensagem_rec.msg);
-				msgs_recebidas[i] = mensagem_rec.msg;
-			}
-
-			if (i == (MAX_MSGS - 1))
-			{
-				/* fim do pai */   
-				printf("----- [PAI] FINALIZACAO!\n");
-				printf("----- [PAI] Mensagens recebidas:\n");     
-				for (int j = 0; j < MAX_MSGS; j++)
+				if(print_flag) {
+					// printf("OI\n");
+					print_flag = false;
+					alarm(2); //reschedule
+				}
+				else
 				{
-					printf("----- [PAI] Posicao {%d} -> Conteudo %d\n", j, msgs_recebidas[j]);
+					printf("[PAI - RODADA %d] Mensagem <pid: %li, msg: %d> recebida!\n", i+1, mensagem_rec.pid, mensagem_rec.msg);
+					msgs_recebidas[i] = mensagem_rec.msg;
 				}
 				
+				// alarm(0);
 			}
+
+			// if (i == (MAX_MSGS - 1))
+			// {
+			// 	/* fim do pai */   
+			// 	printf("----- [PAI] FINALIZACAO!\n");
+			// 	// printf("----- [PAI] Mensagens recebidas:\n");     
+			// 	// for (int j = 0; j < MAX_MSGS; j++)
+			// 	// {
+			// 	// 	printf("----- [PAI] Posicao {%d} -> Conteudo %d\n", j, msgs_recebidas[j]);
+			// 	// }
+				
+			// }
 		}
 	}
 
-	sleep(30);
 
-	if (msgctl(idfila, IPC_RMID, &buf) < 0)
-	{
-		printf("[FIM] Erro #%d\t", errno);
-    	perror("Erro ao tentar remover fila\n");
-    	exit(1);
-	} 
-	else 
-	{
-		printf("[FIM] Fila removida\n");
+	// RODADA 1
+	// 		filho - msg 1
+	//				demora: 3s 
+	//		alarm - timeout
+	// 		pai - não recebi (armazena -1 e itera o for[i=0])
+	//		filho - enviei msg1 (itera o for[i=0])
+	//
+	// 		queue - 1
+
+	// RODADA 2
+	// 		filho - msg 2
+	//				demora: 1s 
+	//		alarm - nada
+	//		queue - 1
+	// 		pai - recebi (armazena 1 e itera o for[i=1])
+	//		filho - enviei msg2 (itera o for[i=1])
+	//
+	//		queue - 2
+
+	// RODADA 3
+	// 		filho - msg 3 
+	//				demora: 4s
+	//		alarm - timeout
+	// 		pai - não recebi (armazena -1 e itera o for[i=2])
+	//		filho - enviei msg3 (itera o for[i=2])
+	//
+	//		queue - 2 3
+
+	// RODADA 4
+	// 		filho - msg 4
+	//				demora: 1s
+	//		alarm - nada
+	//		queue - 2 3
+	// 		pai - recebi (armazena 2 e itera o for[i=3])
+	//		filho - enviei msg4
+	//		
+	//		queue - 3 4
+
+	sleep(30);
+	if (pid != 0) {
+		if (msgctl(idfila, IPC_RMID, &buf) < 0)
+		{
+			printf("[FIM] Erro #%d\t", errno);
+			perror("Erro ao tentar remover fila\n");
+			exit(1);
+		} 
+		else 
+		{
+			printf("[FIM] Fila removida\n");
+		}
 	}
+	
 
 	return 0;
 }
