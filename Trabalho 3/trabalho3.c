@@ -19,9 +19,7 @@ Execução:
 
 */
 
-#define MAX_MSGS 5
-#define MAX_SLEEP 4
-#define MIN_SLEEP 1
+#define MAX_MSGS 10
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,18 +29,19 @@ Execução:
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
+#include <wait.h>
 
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
 void sig_handler(int signum){
-	printf("Inside handler function\n");
+	printf("Timeout!\n");
 }
 
 int main()
 {
-	int pid, idfila, segundos;
+	int pid, idfila, status;
 	struct mensagem
 	{
 		long pid;
@@ -52,77 +51,75 @@ int main()
 	struct mensagem mensagem_env, mensagem_rec;
 	struct msqid_ds buf ; 
 
-	/* criacao da fila de mensagens */
+	/* Criacao da fila de mensagens */
 	if ((idfila = msgget(0x9355, IPC_CREAT|0x1B6)) < 0)
 	{
-		printf("erro na criacao da fila\n");
+		printf("Erro na criacao da fila\n");
 		exit(1);
 	}
 
+	
+	srand((unsigned)time(NULL)); // Gera uma semente de numéros aleatórios
+
 	pid = fork();
-
-	srand((unsigned)time(NULL));
-
-	/* for que garante o envio de dez mensagens */  
-	for(int i = 1; i <= MAX_MSGS; i++)
+	if (pid < 0)
 	{
-		/* filho - P2 (envia msg)*/
-		if (pid == 0)
-		{
-			segundos = 1+ (rand() % 4);
-			printf("%d\n", segundos);
-			sleep(segundos);
+		printf("Erro na criacao dao processo\n");
+		exit(1);
+	}
 
-			mensagem_env.pid = getpid();
+	if (pid == 0)
+	{
+		int segundos;
+		mensagem_env.pid = getpid();
+
+		for (int i=1; i<=MAX_MSGS;i++)
+		{
 			mensagem_env.msg = i;
 
-			msgsnd(idfila, &mensagem_env, sizeof(mensagem_env)-sizeof(long), 0);
+			segundos = 1 + (rand() % 4);
+			printf(" Esperarei %ds para enviar.\n", segundos);
+			sleep(2);
 
-			printf("mensagem <pid: %li, msg: %d> enviada!\n", mensagem_env.pid, mensagem_env.msg);
-
-			if (i == MAX_MSGS)
+			printf("Mensagem %d enviada - pid: %li!\n", mensagem_env.msg, mensagem_env.pid);
+			int msg_env = msgsnd(idfila, &mensagem_env, sizeof(mensagem_env)-sizeof(long), 0);
+			if(msg_env < 0)
 			{
-				exit (0);	/* fim do filho */        
+				printf("Erro no envio de mensagem\n");
+				exit(1);
 			}
+		}
+		exit(0);
+	}
+
+	signal(SIGALRM,sig_handler); // Register signal handler
+	for(int i = 1; i <= MAX_MSGS; i++)
+	{
+		alarm(2);
+
+		if (msgrcv(idfila, &mensagem_rec, sizeof(mensagem_rec)-sizeof(long), 0, 0) != -1)
+		{
+			printf("Mensagem %d recebida! - pid: %li!\n", mensagem_rec.msg, mensagem_rec.pid);
 		}
 		else
 		{
-			/* pai - P1 (recepção da msg) */
-
-			/* logica que garante que o pai espere no maximo dois segundos para receber */
-
-			signal(SIGALRM,sig_handler); // Register signal handler
-
-			alarm(2);
-
-			if (msgrcv(idfila, &mensagem_rec, sizeof(mensagem_rec)-sizeof(long), 0, 0) < 0)
-			{
-				if(errno == EINTR){
-        	printf("Mensagem não foi recebida em 2s.\n");
-				}
-				else
-				{
-					printf("Erro ao receber mensagem! Erro: %d", errno);
-				}
+			if(errno == EINTR){
+				printf("Mensagem não foi recebida em 2s.\n");
 			}
 			else
 			{
-				alarm(0);
-				printf("mensagem <pid: %li, msg: %d> recebida!\n", mensagem_rec.pid, mensagem_rec.msg);
+				printf("Erro ao receber mensagem! Erro: %d", errno);
 			}
 		}
 	}
 
-	if (msgctl(idfila, IPC_RMID, &buf) < 0)
+	wait(&status);
+	if (msgctl(idfila, IPC_RMID, NULL) < 0)
 	{
 		printf("\nErro #%d\t", errno);
-    perror("\nErro ao tentar remover fila");
-    exit(1);
-  } 
-  else 
-  {
-    printf("Fila removida\n");
-  }
+    	perror("\nErro ao tentar remover fila");
+    	exit(1);
+  	}
 
 	return 0;
 }
