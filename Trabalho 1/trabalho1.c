@@ -9,10 +9,13 @@ Integrantes:
 
 Especificacoes de sistema utilizadas para testes:
 - Ubuntu 18.04.4 (Máquina Virtual)
-- GCC versao 7.5.0 
+- GCC versao 7.5.0
+
+- Ubuntu 20.04 (Máquina Virtual)
+- GCC versão 9.3.0 
 
 Compilação:
-gcc trabalho1.c -o trabalho1
+gcc trabalho1.c -Wall -o trabalho1
 
 Execução:
 ./trabalho1 [NUMERO_DE_PROCESSOS_DESEJADO] &
@@ -31,18 +34,16 @@ int main(int argc, char** argv)
 	// Verificacao se o numero de processos passado via argumento e valido.
 	if(atoi(argv[1]) > 10) 
 	{
-		printf("\nArgumento invalido!\nPor gentileza, forneca um argumento menor ou igual a 10.\n");
+		printf("Argumento invalido!Por gentileza, forneca um argumento menor ou igual a 10.\n");
 		exit(1);
 	}
 
 	// Impressao de dados do processo-pai.
-	printf("\nProcesso-pai\npid %d\n", (int) getpid());
+	printf("Processo pai - pid %d\n", (int) getpid());
 
 	// Loop de tratamento de novos processos.
 	for(int n = 0; n < atoi(argv[1]); n++) 
 	{
-
-		int pid;
 		
 		// Caso nao seja possivel realizar o fork.
 		if ((pid = fork()) < 0)
@@ -55,7 +56,7 @@ int main(int argc, char** argv)
 		else if(pid == 0) 
 		{
 			// Impressao de dados do processo-filho.
-			printf("\nProcesso-filho numero %d\nppid %d -> pid %d\n", n+1, (int) getppid(), (int) getpid());
+			printf("Processo filho numero %d - ppid %d -> pid %d\n", n+1, (int) getppid(), (int) getpid());
 			sleep(30);
 			exit(0);
 		}
