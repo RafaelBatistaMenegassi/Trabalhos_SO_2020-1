@@ -127,9 +127,10 @@ int main()
 			exit(1);
 		}
 		else 
-    {
-      printf("\nFila de mensagens removida\n");
-    }
+    		{
+      			printf("\nFila de mensagens removida\n");
+    		}
 	}
 	return 0;
 }
+
